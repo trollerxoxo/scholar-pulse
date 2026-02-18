@@ -1,0 +1,24 @@
+[project]
+name = "task-tracker"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "rich>=14.3.2",
+    "sqlmodel>=0.0.32",
+    "typer[all]>=0.21.1",
+]
+[project.scripts]
+task-cli = "task_cli.main:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
+[tool.hatch.build.targets.wheel]
+packages = ["src/task_cli"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
