@@ -1,23 +1,24 @@
 [project]
-name = "task-tracker"
+name = "scholar-pulse"
 version = "0.1.0"
-description = "Add your description here"
+description = "A CLI tool to aggregate, rank, and export academic papers for NotebookLM"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "httpx>=0.28.1",
+    "pydantic>=2.12.5",
     "rich>=14.3.2",
-    "sqlmodel>=0.0.32",
-    "typer[all]>=0.21.1",
+    "typer>=0.21.1",
 ]
 [project.scripts]
-task-cli = "task_cli.main:app"
+pulse = "pulse.main:app"
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
 ]
 [tool.hatch.build.targets.wheel]
-packages = ["src/task_cli"]
+packages = ["src/pulse"]
 
 [build-system]
 requires = ["hatchling"]
