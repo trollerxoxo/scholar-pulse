@@ -33,10 +33,10 @@ class Settings(BaseModel):
     providers: ProviderConfig = ProviderConfig()
     export: OutputConfig = OutputConfig()
 
-def load_config():
+def load_config() -> Settings:
     config_path = Path("~/.scholar-pulse/config.toml").expanduser()
     if config_path.exists():
         with open(config_path, "rb") as f:
             return Settings(**tomllib.load(f))
-    return Settings()    
+    return Settings()
 
