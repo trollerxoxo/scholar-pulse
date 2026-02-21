@@ -1,46 +1,57 @@
-from .storage import load_tasks, save_tasks
-from .models import Task, Status
-from typing import List
-from datetime import datetime
+from pulse.models import Paper, Query
+from pulse.config import RankingConfig
+import math
+from datetime import date
 
-def add_task(description: str) -> Task:
-    tasks = load_tasks()
-    if not tasks:
-        last_id = 0
+def rank_papers(papers: list[Paper], query: Query, config: RankingConfig) -> list[Paper]:
+    
+    if not papers:
+        return []
+    
+    max_citations_in_set = max(p.citation_count for p in papers)
+    if max_citations_in_set > 0:
+        wc = config.weight_citation
+        wr = config.weight_recency
+        wk = config.weight_keyword
     else:
-        last_id = max(task.id for task in tasks)
+        wk = config.weight_keyword + (config.weight_citation/2)
+        wr = config.weight_recency + (config.weight_citation/2)
+        wc = 0
 
-    task = Task(id=last_id + 1, description=description)
-    tasks.append(task)
-    save_tasks(tasks)
+    query_keyword = set(keyword.lower() for keyword in query.keywords)
+    
+    for paper in papers:
+        if max_citations_in_set > 0:
+            C_norm = math.log( 1 + paper.citation_count) / math.log(1 + max_citations_in_set)
+        else:
+            C_norm = 0
 
-    return task
+        paper_keyword = set(keyword.lower() for keyword in paper.keywords)
+        matching_keywords = query_keyword.intersection(paper_keyword)
+        S = len(matching_keywords)/len(query_keyword) if query_keyword else 0
+       
 
-def get_tasks(status: Status | None = None  ) -> List[Task]:
-    tasks = load_tasks()
-    if status:
-        tasks = [task for task in tasks if task.status == status]
-    return tasks
+        days_since_publication = (date.today() - paper.published_date).days
+        Recency = 1 / (days_since_publication + 1)
+        
+        R = wc * C_norm + wr * Recency + wk * S
+       
+        paper.relevance_score = R
 
-def delete_task(task_id: int) -> Task:
-    tasks = load_tasks()
-    task_to_delete = next((task for task in tasks if task.id == task_id), None)
-    if not task_to_delete:
-        raise ValueError(f"Task with id {task_id} not found")
-    else:
-        tasks = [task for task in tasks if task.id != task_id]
-        save_tasks(tasks)
-        return task_to_delete
+    return sorted(papers, key=lambda p: p.relevance_score, reverse=True)
 
-def update_task(task_id: int, description: str | None = None, status: Status | None = None) -> Task:
-    tasks = load_tasks()
-    task_to_update = next((task for task in tasks if task.id == task_id), None)
-    if not task_to_update:
-        raise ValueError(f"Task with id {task_id} not found")
-    if description:
-        task_to_update.description = description
-    if status:
-        task_to_update.status = status
-    task_to_update.updated_at = datetime.now()
-    save_tasks(tasks)
-    return task_to_update
+def deduplicate(papers: list[Paper]) -> list[Paper]:
+    unique_papers = {}
+    for paper in papers:
+        key = paper.doi or paper.arxiv_id or paper.openalex_id or paper.id
+        
+        if key:
+            if key not in unique_papers:
+                unique_papers[key] = paper
+            else:
+                existing = unique_papers[key]   
+                existing_metadata_field_count = sum((1 for value in existing.model_dump().values() if value not in [None, ""]))
+                new_metadata_field_count = sum((1 for value in paper.model_dump().values() if value not in [None, ""]))
+                if new_metadata_field_count > existing_metadata_field_count:
+                    unique_papers[key] = paper
+    return list(unique_papers.values())
