@@ -21,8 +21,8 @@ class Paper(BaseModel):
 class Query(BaseModel):
     keywords: list[str]
     categories: list[str]
-    date_from: date | None
-    date_to: date | None
+    date_from: date | None = None
+    date_to: date | None = None
     max_results: int = 20
 
 class RankingConfig(BaseModel):

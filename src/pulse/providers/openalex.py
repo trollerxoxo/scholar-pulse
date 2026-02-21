@@ -9,10 +9,18 @@ class OpenAlexProvider:
 
     async def search(self, query: Query) -> List[Paper]:
         query_string = " ".join(query.keywords)
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f"{self.base_url}", params={"search": query_string, 
+        params = {"search": query_string, 
             "per_page": query.max_results, 
-            "mailto": (self.email if self.email else "")})
+            "mailto": (self.email if self.email else "")}
+        if query.date_from or query.date_to:
+            filters = []
+            if query.date_from:
+                filters.append(f"from_publication_date:{query.date_from}")
+            if query.date_to:
+                filters.append(f"to_publication_date:{query.date_to}")
+            params["filter"] = ",".join(filters)    
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{self.base_url}", params=params)
             response.raise_for_status()
             return [self._to_paper(paper) for paper in response.json()["results"]]
     

@@ -1,59 +1,39 @@
 import typer
-from typing import Annotated, Optional
-from . import service
-from .models import Status
 from rich import print
 from rich.table import Table
+import asyncio
+from pulse import service
+from typing import Annotated
 
 
 app = typer.Typer()
 
-@app.command("add")
-def add_task(description: Annotated[str, typer.Argument()]):
-    added_task = service.add_task(description)
-    print(f"Task added successfully: (ID: {added_task.id})")
+@app.callback()
+def callback():
+    """📚 Scholar Pulse — Automated research paper discovery for PhD students."""
 
-@app.command("delete")
-def delete_task(task_id: Annotated[int, typer.Argument()]):
-    deleted_task = service.delete_task(task_id)
-    print(f"Task deleted successfully: (ID: {deleted_task.id})")
-
-@app.command("update")
-def update_task(task_id: Annotated[int, typer.Argument()], 
-            description: Annotated[Optional[str], typer.Option()] = None, 
-            status: Annotated[Optional[Status], typer.Option()] = None):
-    if description is None and status is None:
-        print(":warning: Description or status must be provided")
-        return
-    updated_task = service.update_task(task_id, description, status)
-    print(f"Task updated successfully: (ID: {updated_task.id}) (Status: {updated_task.status})")
-
-@app.command("list")
-def list_tasks(status: Annotated[Optional[Status], typer.Option()] = None):
-    table = Table(title="Tasks")
-    table.add_column("ID", justify="right", style="cyan", no_wrap=True)
-    table.add_column("Description", style="magenta")
-    table.add_column("Status", justify="right", style="green")  
-    table.add_column("Created", justify="right", style="green")
-    table.add_column("Updated", justify="right", style="green")
-    tasks = service.get_tasks(status=status)
-    for task in tasks:
-        table.add_row(str(task.id), 
-        task.description, 
-        task.status, 
-        task.created_at.strftime("%Y-%m-%d %H:%M"), 
-        task.updated_at.strftime("%Y-%m-%d %H:%M"))
+@app.command("digest")
+def digest(top_n: Annotated[int, typer.Option(min=1, max=100)] = 10,
+           days: Annotated[int, typer.Option(min=1)] = 30):
+    papers = asyncio.run(service.run_digest(top_n=top_n, days=days))
+    table = Table(title=f"📚 Scholar Pulse Digest ({days} days)", show_lines=True, expand=True)
+    table.add_column("#", justify="right", style="bold cyan", width=3)
+    table.add_column("Title", style="white", ratio=3, no_wrap=False)
+    table.add_column("Citations", justify="right", style="green", min_width=5)
+    table.add_column("Date", style="yellow", min_width=10)
+    table.add_column("Score", justify="right", style="magenta", min_width=5)
+    table.add_column("Source", style="dim", min_width=8)
+    
+    for i, paper in enumerate(papers, 1):
+        table.add_row(
+            str(i), 
+            paper.title, 
+            str(paper.citation_count), 
+            str(paper.published_date),
+            f"{paper.relevance_score:.3f}" if paper.relevance_score else "N/A",
+            paper.source_provider
+        )
     print(table)
-
-@app.command("mark-done")
-def mark_done(task_id: Annotated[int, typer.Argument()]):
-    updated_task = service.update_task(task_id, status=Status.DONE)
-    print(f"Task marked as done: (ID: {updated_task.id}) (Status: {updated_task.status})")  
-
-@app.command("mark-in-progress")
-def mark_in_progress(task_id: Annotated[int, typer.Argument()]):
-    updated_task = service.update_task(task_id, status=Status.IN_PROGRESS)
-    print(f"Task marked as in-progress: (ID: {updated_task.id}) (Status: {updated_task.status})")
 
 if __name__ == "__main__":
     app()

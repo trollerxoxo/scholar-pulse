@@ -12,12 +12,25 @@ class SemanticScholarProvider:
     async def search(self, query: Query) -> List[Paper]:
         query_string = " ".join(query.keywords)
         headers = {"x-api-key": self.api_key} if self.api_key else {}
+        params = {
+            "query": query_string,
+            "limit": query.max_results,
+            "fields": "title,authors,abstract,externalIds,url,openAccessPdf,citationCount,publicationDate"
+        }
+        if query.date_from:
+            params["year"] = f"{query.date_from.year}-{query.date_to.year}" if query.date_to else f"{query.date_from.year}-"        
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{self.base_url}/search", params={"query": query_string, "limit": query.max_results, 
-            "fields": "title,authors,abstract,externalIds,url,openAccessPdf,citationCount,publicationDate"}, 
+            response = await client.get(f"{self.base_url}/search", 
+            params=params,
             headers=headers)
             response.raise_for_status()
-            return [self._to_paper(paper) for paper in response.json()["data"]]
+            papers = []
+            for item in response.json()["data"]:
+                try:
+                    papers.append(self._to_paper(item))
+                except Exception:
+                    continue
+            return papers
     
     def _to_paper(self, paper: dict) -> Paper:
         external_ids = paper.get("externalIds") or {}
@@ -35,5 +48,5 @@ class SemanticScholarProvider:
             keywords=[],
             source_provider="semantic_scholar",
             relevance_score=None,
-            published_date=paper["publicationDate"],
+            published_date=paper.get("publicationDate") or "",
         )

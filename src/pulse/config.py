@@ -1,6 +1,8 @@
 from pydantic import BaseModel
 import tomllib
 from pathlib import Path
+from dotenv import load_dotenv
+import os
 
 class SearchConfig(BaseModel):
     default_keywords: list[str] = [
@@ -33,10 +35,18 @@ class Settings(BaseModel):
     providers: ProviderConfig = ProviderConfig()
     export: OutputConfig = OutputConfig()
 
+    semantic_scholar_api_key: str | None = None
+    openalex_email: str | None = None
+
 def load_config() -> Settings:
+    load_dotenv()
     config_path = Path("~/.scholar-pulse/config.toml").expanduser()
+    toml_data = {}
     if config_path.exists():
         with open(config_path, "rb") as f:
-            return Settings(**tomllib.load(f))
-    return Settings()
-
+            toml_data = tomllib.load(f)
+    return Settings(
+        **toml_data,
+        semantic_scholar_api_key=os.getenv("SEMANTIC_SCHOLAR_API_KEY"),
+        openalex_email=os.getenv("OPENALEX_EMAIL"),
+    )

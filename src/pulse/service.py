@@ -1,7 +1,9 @@
 from pulse.models import Paper, Query
-from pulse.config import RankingConfig
+from pulse.config import RankingConfig, load_config, Settings
 import math
-from datetime import date
+from datetime import date, timedelta
+import asyncio
+from pulse.providers import get_provider
 
 def rank_papers(papers: list[Paper], query: Query, config: RankingConfig) -> list[Paper]:
     
@@ -55,3 +57,35 @@ def deduplicate(papers: list[Paper]) -> list[Paper]:
                 if new_metadata_field_count > existing_metadata_field_count:
                     unique_papers[key] = paper
     return list(unique_papers.values())
+
+async def run_digest(top_n: int = 5, days: int = 30) -> list[Paper]:
+    settings = load_config()
+    query = Query(
+        keywords=settings.search.default_keywords,
+        categories=settings.search.default_categories,
+        max_results=settings.search.max_results_per_provider,
+        date_from=date.today() - timedelta(days=days),
+        date_to=date.today()
+    )
+    provider_credentials = {
+        "semantic_scholar": {"api_key": settings.semantic_scholar_api_key},
+        "openalex": {"email": settings.openalex_email},
+    }
+    providers = [
+        get_provider(name)(**provider_credentials.get(name, {}))
+        for name in settings.providers.enabled
+    ]
+    tasks = [provider.search(query) for provider in providers]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    all_papers = []
+    for result in results:
+        if isinstance(result, Exception):
+            print(f"Error fetching papers: {result}")
+        else:
+            all_papers.extend(result)
+    
+    unique_papers = deduplicate(all_papers)
+    ranked_papers = rank_papers(unique_papers, query, settings.ranking)
+    
+    return ranked_papers[:top_n]
