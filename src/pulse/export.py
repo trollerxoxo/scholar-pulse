@@ -81,6 +81,8 @@ async def export_pdfs(papers: List[Paper], output_path: str = "./papers") -> Pat
     return output_dir
 
 async def download_pdfs(client:httpx.AsyncClient, url: str, path: Path):
+    if path.exists():
+        return
     try:
         response = await client.get(url, timeout=10, follow_redirects=True)
         response.raise_for_status()

@@ -1,7 +1,9 @@
 from pulse.models import Paper, Query
 from pulse.config import RankingConfig, load_config, Settings
 import math
-from datetime import date, timedelta
+import json
+from datetime import date, datetime, timedelta
+from pathlib import Path
 import asyncio
 from pulse.providers import get_provider
 
@@ -67,6 +69,15 @@ async def run_digest(top_n: int = 5, days: int = 30) -> list[Paper]:
         date_from=date.today() - timedelta(days=days),
         date_to=date.today()
     )
+
+    cache_dir = Path("~/.scholar-pulse/cache").expanduser()
+    _cleanup_stale_cache(cache_dir)
+    cache_key = _cache_key(query, days)
+    cache_file = cache_dir / f"{cache_key}.json"
+    cached_papers = _load_cache(cache_file)
+    if cached_papers:
+        return cached_papers[:top_n]
+
     provider_credentials = {
         "semantic_scholar": {"api_key": settings.semantic_scholar_api_key},
         "openalex": {"email": settings.openalex_email},
@@ -88,4 +99,43 @@ async def run_digest(top_n: int = 5, days: int = 30) -> list[Paper]:
     unique_papers = deduplicate(all_papers)
     ranked_papers = rank_papers(unique_papers, query, settings.ranking)
     
+    _save_cache(cache_file, ranked_papers)
     return ranked_papers[:top_n]
+
+def _cache_key(query: Query, days: int) -> str:
+    import hashlib, json
+    raw = json.dumps({
+        "keywords": query.keywords,
+        "categories": query.categories,
+        "max_results": query.max_results,
+        "date_from": (date.today() - timedelta(days=days)).isoformat(),
+        "date_to": query.date_to.isoformat(),
+    }, sort_keys=True).encode()
+    return hashlib.sha256(raw).hexdigest()[:16]
+
+def _load_cache(cache_file: Path) -> list[Paper] | None:
+    if not cache_file.exists():
+        return None
+    try:
+        with open(cache_file) as f:
+            return [Paper(**p) for p in json.load(f)]
+    except Exception as e:
+        print(f"Error loading cache: {e}")
+        return None
+
+def _save_cache(cache_file: Path, papers: list[Paper]) -> None:
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(cache_file, "w") as f:
+        json.dump([p.model_dump(mode="json") for p in papers], f, indent=2)
+
+def _cleanup_stale_cache(cache_dir: Path) -> None:
+    if not cache_dir.exists():
+        return
+    now = datetime.now().timestamp()
+    for f in cache_dir.glob("*.json"):
+        try:
+            age = now - f.stat().st_mtime
+            if age > 3600:
+                f.unlink()
+        except Exception as e:
+            print(f"Error cleaning up cache: {e}")
