@@ -3,6 +3,7 @@ from rich import print
 from rich.table import Table
 import asyncio
 from pulse import service
+from pulse import export as export_module
 from typing import Annotated
 
 
@@ -14,7 +15,9 @@ def callback():
 
 @app.command("digest")
 def digest(top_n: Annotated[int, typer.Option(min=1, max=100)] = 10,
-           days: Annotated[int, typer.Option(min=1)] = 30):
+           days: Annotated[int, typer.Option(min=1)] = 30,
+           export: Annotated[str, typer.Option(help="Export format: md or bibtex")] = None,
+           export_path: Annotated[str, typer.Option(help="Export path")] = None):
     papers = asyncio.run(service.run_digest(top_n=top_n, days=days))
     table = Table(title=f"📚 Scholar Pulse Digest ({days} days)", show_lines=True, expand=True)
     table.add_column("#", justify="right", style="bold cyan", width=3)
@@ -34,6 +37,21 @@ def digest(top_n: Annotated[int, typer.Option(min=1, max=100)] = 10,
             paper.source_provider
         )
     print(table)
+    if export == "md":
+        kwargs = {"output_path": export_path} if export_path else {}
+        path = export_module.export_markdown(papers, **kwargs)
+        print(f"\n[green]Exported to {path.absolute()}[/green]")
+    elif export == "bibtex":
+        kwargs = {"output_path": export_path} if export_path else {}
+        path = export_module.export_bibtex(papers, **kwargs)
+        print(f"\n[green]Exported to {path.absolute()}[/green]")
+    elif export == "pdf":
+        kwargs = {"output_path": export_path} if export_path else {}
+        print("\n[cyan]Downloading PDFs...[/cyan]")
+        path = asyncio.run(export_module.export_pdfs(papers, **kwargs))
+        print(f"\n[green]Downloaded PDFs to {path.absolute()}[/green]")
+    elif export:
+        print(f"\n[red]Unknown export format: {export}[/red]")
 
 if __name__ == "__main__":
     app()
