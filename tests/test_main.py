@@ -19,10 +19,14 @@ def test_config_show_displays_keys():
 
 
 def test_config_show_masks_secrets():
-    """API keys and email should be masked with bullet characters."""
-    result = runner.invoke(app, ["config", "show"])
-    assert result.exit_code == 0
+    with patch("pulse.main.config.load_config") as mock:
+        mock.return_value = Settings(
+            semantic_scholar_api_key="secret_key_12345",
+            openalex_email="test@university.edu",
+        )
+        result = runner.invoke(app, ["config", "show"])
     assert "•" in result.output
+    assert "secret_key_12345" not in result.output
 
 
 # --- config set ---

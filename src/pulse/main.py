@@ -94,7 +94,7 @@ def config_set(key: str, value: Annotated[str, typer.Argument(help="Value to set
     else:
         print(f"[red]Unknown key: {key}[/red]")
         print("Available keys:")
-        print([field for name, section in settings if isinstance(section, BaseModel) for field in section.model_fields])
+        print([field for name, section in settings if isinstance(section, BaseModel) for field in type(section).model_fields])
         return
     config.save_config(settings)
     print(f"[green]Set {key} to {value}[/green]")
