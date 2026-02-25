@@ -9,6 +9,7 @@ dependencies = [
     "pydantic>=2.12.5",
     "python-dotenv>=1.2.1",
     "rich>=14.3.2",
+    "tomli-w>=1.2.0",
     "typer>=0.21.1",
 ]
 [project.scripts]

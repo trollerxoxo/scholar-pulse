@@ -3,6 +3,7 @@ import tomllib
 from pathlib import Path
 from dotenv import load_dotenv
 import os
+import tomli_w
 
 class SearchConfig(BaseModel):
     default_keywords: list[str] = [
@@ -38,9 +39,9 @@ class Settings(BaseModel):
     semantic_scholar_api_key: str | None = None
     openalex_email: str | None = None
 
-def load_config() -> Settings:
+def load_config(config_path: Path | None = None) -> Settings:
     load_dotenv()
-    config_path = Path("~/.scholar-pulse/config.toml").expanduser()
+    config_path = config_path or Path("~/.scholar-pulse/config.toml").expanduser()
     toml_data = {}
     if config_path.exists():
         with open(config_path, "rb") as f:
@@ -50,3 +51,8 @@ def load_config() -> Settings:
         semantic_scholar_api_key=os.getenv("SEMANTIC_SCHOLAR_API_KEY"),
         openalex_email=os.getenv("OPENALEX_EMAIL"),
     )
+
+def save_config(settings: Settings, config_path: Path | None = None):
+    config_path = config_path or Path("~/.scholar-pulse/config.toml").expanduser()
+    with open(config_path, "wb") as f:
+       tomli_w.dump(settings.model_dump(exclude={'semantic_scholar_api_key', 'openalex_email'}), f)
