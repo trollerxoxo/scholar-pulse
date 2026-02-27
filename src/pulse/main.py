@@ -56,6 +56,28 @@ def digest(top_n: Annotated[int, typer.Option(min=1, max=100)] = 10,
     elif export:
         print(f"\n[red]Unknown export format: {export}[/red]")
 
+@app.command("search")
+def search(query: Annotated[str, typer.Argument(help="Search query (comma separated)")], categories: Annotated[str, typer.Option(help="Categories (comma separated)")] = None):
+    papers = asyncio.run(service.search(query, categories))
+    table = Table(title="📚 Scholar Pulse Search", show_lines=True, expand=True)
+    table.add_column("#", justify="right", style="bold cyan", width=3)
+    table.add_column("Title", style="white", ratio=3, no_wrap=False)
+    table.add_column("Citations", justify="right", style="green", min_width=5)
+    table.add_column("Date", style="yellow", min_width=10)
+    table.add_column("Score", justify="right", style="magenta", min_width=5)
+    table.add_column("Source", style="dim", min_width=8)
+    
+    for i, paper in enumerate(papers, 1):
+        table.add_row(
+            str(i), 
+            paper.title, 
+            str(paper.citation_count), 
+            str(paper.published_date),
+            f"{paper.relevance_score:.3f}" if paper.relevance_score else "N/A",
+            paper.source_provider
+        )
+    print(table)
+
 @config_app.command("show")
 def config_show():
     settings = config.load_config()

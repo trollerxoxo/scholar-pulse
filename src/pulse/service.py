@@ -77,7 +77,27 @@ async def run_digest(top_n: int = 5, days: int = 30) -> list[Paper]:
     cached_papers = _load_cache(cache_file)
     if cached_papers:
         return cached_papers[:top_n]
+    
+    ranked_papers = await _fetch_and_rank(query, settings)
+    _save_cache(cache_file, ranked_papers)
+    return ranked_papers[:top_n]
 
+async def search(query: str, categories: str | None = None) -> list[Paper]:
+    settings = load_config()
+    query = [q.strip() for q in query.split(",") if q]
+    categories = [c.strip() for c in categories.split(",") if c] if categories else settings.search.default_categories
+    query = Query(
+        keywords=query,
+        categories=categories,
+        max_results=settings.search.max_results_per_provider,
+        date_from=date.today() - timedelta(days=30),
+        date_to=date.today()
+    )
+
+    ranked_papers = await _fetch_and_rank(query, settings)
+    return ranked_papers
+
+async def _fetch_and_rank(query: Query, settings: Settings) -> list[Paper]:
     provider_credentials = {
         "semantic_scholar": {"api_key": settings.semantic_scholar_api_key},
         "openalex": {"email": settings.openalex_email},
@@ -98,9 +118,8 @@ async def run_digest(top_n: int = 5, days: int = 30) -> list[Paper]:
     
     unique_papers = deduplicate(all_papers)
     ranked_papers = rank_papers(unique_papers, query, settings.ranking)
-    
-    _save_cache(cache_file, ranked_papers)
-    return ranked_papers[:top_n]
+
+    return ranked_papers
 
 def _cache_key(query: Query, days: int) -> str:
     import hashlib, json
