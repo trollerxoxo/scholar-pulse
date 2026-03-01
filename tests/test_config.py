@@ -16,7 +16,7 @@ def test_load_config_defaults(tmp_path):
     assert config.ranking.weight_recency == 0.3
     assert config.ranking.weight_keyword == 0.3
     assert config.providers.enabled == ["semantic_scholar", "openalex"]
-    assert config.export.default_format == "markdown"
+    assert config.export.default_format == "md"
 
 
 def test_load_config_reads_toml(tmp_path):
@@ -78,7 +78,7 @@ def test_save_then_load_roundtrip(tmp_path):
     assert loaded.ranking.weight_citation == 0.6
     # Unchanged defaults preserved
     assert loaded.ranking.weight_recency == 0.3
-    assert loaded.export.default_format == "markdown"
+    assert loaded.export.default_format == "md"
 
 
 def test_save_then_load_preserves_all_sections(tmp_path):

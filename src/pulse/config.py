@@ -28,7 +28,7 @@ class ProviderConfig(BaseModel):
     ]
 
 class OutputConfig(BaseModel):
-    default_format: str = "markdown"
+    default_format: str = "md"
 
 class Settings(BaseModel):
     search: SearchConfig = SearchConfig()

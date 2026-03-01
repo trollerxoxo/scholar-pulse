@@ -2,8 +2,9 @@ import typer
 from rich import print
 from rich.table import Table
 import asyncio
-from pulse import service, config
+from pulse import service, config, storage
 from pulse import export as export_module
+from pulse.models import Paper
 from typing import Annotated
 from pathlib import Path
 from pydantic import BaseModel
@@ -22,24 +23,7 @@ def digest(top_n: Annotated[int, typer.Option(min=1, max=100)] = 10,
            export: Annotated[str, typer.Option(help="Export format: md or bibtex")] = None,
            export_path: Annotated[str, typer.Option(help="Export path")] = None):
     papers = asyncio.run(service.run_digest(top_n=top_n, days=days))
-    table = Table(title=f"📚 Scholar Pulse Digest ({days} days)", show_lines=True, expand=True)
-    table.add_column("#", justify="right", style="bold cyan", width=3)
-    table.add_column("Title", style="white", ratio=3, no_wrap=False)
-    table.add_column("Citations", justify="right", style="green", min_width=5)
-    table.add_column("Date", style="yellow", min_width=10)
-    table.add_column("Score", justify="right", style="magenta", min_width=5)
-    table.add_column("Source", style="dim", min_width=8)
-    
-    for i, paper in enumerate(papers, 1):
-        table.add_row(
-            str(i), 
-            paper.title, 
-            str(paper.citation_count), 
-            str(paper.published_date),
-            f"{paper.relevance_score:.3f}" if paper.relevance_score else "N/A",
-            paper.source_provider
-        )
-    print(table)
+    _render_table(papers, title=f"📚 Scholar Pulse Digest ({days} days)")
     if export == "md":
         kwargs = {"output_path": export_path} if export_path else {}
         path = export_module.export_markdown(papers, **kwargs)
@@ -59,24 +43,36 @@ def digest(top_n: Annotated[int, typer.Option(min=1, max=100)] = 10,
 @app.command("search")
 def search(query: Annotated[str, typer.Argument(help="Search query (comma separated)")], categories: Annotated[str, typer.Option(help="Categories (comma separated)")] = None):
     papers = asyncio.run(service.search(query, categories))
-    table = Table(title="📚 Scholar Pulse Search", show_lines=True, expand=True)
-    table.add_column("#", justify="right", style="bold cyan", width=3)
-    table.add_column("Title", style="white", ratio=3, no_wrap=False)
-    table.add_column("Citations", justify="right", style="green", min_width=5)
-    table.add_column("Date", style="yellow", min_width=10)
-    table.add_column("Score", justify="right", style="magenta", min_width=5)
-    table.add_column("Source", style="dim", min_width=8)
-    
-    for i, paper in enumerate(papers, 1):
-        table.add_row(
-            str(i), 
-            paper.title, 
-            str(paper.citation_count), 
-            str(paper.published_date),
-            f"{paper.relevance_score:.3f}" if paper.relevance_score else "N/A",
-            paper.source_provider
-        )
-    print(table)
+    _render_table(papers, title="📚 Scholar Pulse Search")
+
+@app.command("list")
+def list_papers():
+    papers = storage.load_papers()
+    _render_table(papers, title="📚 Scholar Pulse Papers")
+
+@app.command("export")
+def export(format: Annotated[str, typer.Option(help="Export format: md or bibtex")] = None, output_path: Annotated[str, typer.Option(help="Export path")] = None):
+    papers = storage.load_papers()
+    if format is None:
+        format = config.load_config().export.default_format
+    if not papers:
+        print("[yellow]No papers found.[/yellow]")
+        return
+    if format == "md":
+        kwargs = {"output_path": output_path} if output_path else {}
+        path = export_module.export_markdown(papers, **kwargs)
+        print(f"\n[green]Exported to {path.absolute()}[/green]")
+    elif format == "bibtex":
+        kwargs = {"output_path": output_path} if output_path else {}
+        path = export_module.export_bibtex(papers, **kwargs)
+        print(f"\n[green]Exported to {path.absolute()}[/green]")
+    elif format == "pdf":
+        kwargs = {"output_path": output_path} if output_path else {}
+        print("\n[cyan]Downloading PDFs...[/cyan]")
+        path = asyncio.run(export_module.export_pdfs(papers, **kwargs))
+        print(f"\n[green]Downloaded PDFs to {path.absolute()}[/green]")
+    elif format:
+        print(f"\n[red]Unknown export format: {format}[/red]")
 
 @config_app.command("show")
 def config_show():
@@ -157,5 +153,27 @@ def config_init():
     print("[green]Config initialized[/green]")
     config_show()
 
+def _render_table(papers: list[Paper], title: str = "📚 Scholar Pulse Papers"):
+    table = Table(title=title, show_lines=True, expand=True)
+    table.add_column("#", justify="right", style="bold cyan", width=3)
+    table.add_column("Title", style="white", ratio=3, no_wrap=False)
+    table.add_column("Citations", justify="right", style="green", min_width=5)
+    table.add_column("Date", style="yellow", min_width=10)
+    table.add_column("Score", justify="right", style="magenta", min_width=5)
+    table.add_column("Source", style="dim", min_width=8)
+    
+    for i, paper in enumerate(papers, 1):
+        table.add_row(
+            str(i), 
+            paper.title, 
+            str(paper.citation_count), 
+            str(paper.published_date),
+            f"{paper.relevance_score:.3f}" if paper.relevance_score else "N/A",
+            paper.source_provider
+        )
+    if not papers:
+        print("[yellow]No papers found.[/yellow]")
+        return
+    print(table)
 if __name__ == "__main__":
     app()
